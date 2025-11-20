@@ -1,0 +1,15 @@
+[package]
+name = "synesthesia-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "synesthesia_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20.0", features = ["extension-module"] }
+cpal = "0.15.2"
+rustfft = "6.1.0"
+numpy = "0.20.0"
+anyhow = "1.0"

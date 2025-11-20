@@ -1,0 +1,15 @@
+# Ignore these everywhere
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.DS_Store
+
+# Specific project ignores (recursive)
+target/
+dist/
+*.so
+qdrant_storage/
+node_modules/
+.next/

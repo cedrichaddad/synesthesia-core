@@ -1,0 +1,38 @@
+use pyo3::prelude::*;
+use crate::audio::AudioFingerprinter;
+
+mod audio;
+mod window;
+
+/// A robust, memory-efficient fingerprint structure exposed to Python.
+/// Uses u64 for the hash to avoid string allocation overhead.
+#[pyclass]
+pub struct Fingerprint {
+    #[pyo3(get)]
+    pub hash: u64,
+    #[pyo3(get)]
+    pub offset: u32, // The time "anchor" for alignment verification
+}
+
+#[pyfunction]
+fn audio_fingerprint(_py: Python, audio_buffer: Vec<f32>) -> PyResult<Vec<Fingerprint>> {
+    let mut fingerprinter = AudioFingerprinter::new();
+    
+    // The Rust engine returns raw tuples (hash, offset)
+    let raw_data = fingerprinter.fingerprint(&audio_buffer);
+    
+    // Map to the PyClass struct for Python consumption
+    let result = raw_data
+        .into_iter()
+        .map(|(h, t)| Fingerprint { hash: h, offset: t as u32 })
+        .collect();
+
+    Ok(result)
+}
+
+#[pymodule]
+fn core(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Fingerprint>()?;
+    m.add_function(wrap_pyfunction!(audio_fingerprint, m)?)?;
+    Ok(())
+}
