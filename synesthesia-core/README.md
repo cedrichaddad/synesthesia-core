@@ -16,6 +16,7 @@ Create a `.env` file in `synesthesia-core/`:
 ```bash
 SPOTIPY_CLIENT_ID="your_spotify_client_id"
 SPOTIPY_CLIENT_SECRET="your_spotify_client_secret"
+SPOTIPY_REDIRECT_URI="http://127.0.0.1:3000/callback"
 ```
 
 ## Local Development
@@ -47,6 +48,8 @@ SPOTIPY_CLIENT_SECRET="your_spotify_client_secret"
     npm install
     npm run dev
     ```
+
+    **Important**: Access the application at `http://127.0.0.1:3000` (NOT `localhost:3000`) to ensure Spotify OAuth redirects work correctly.
 
 ## Production Build (Docker)
 

@@ -28,15 +28,17 @@ def setup_mocks():
     
     # Reset mocks before each test
     mock_vector_engine.reset_mock()
-    mock_spotify_client.reset_mock()
+    mock_spotify_client.reset_mock(side_effect=True)
 
 def test_search_success():
     # Setup Mock Returns
     mock_spotify_client.search.return_value = {
         "artist": "Daft Punk",
         "title": "Get Lucky",
-        "genre": "Funk"
+        "genre": "Funk",
+        "id": "spotify_123"
     }
+    mock_vector_engine.get_vector.return_value = None
     mock_vector_engine.get_concept_vector.return_value = np.zeros(512, dtype=np.float32)
 
     response = client.get("/search?query=Get Lucky")
@@ -53,8 +55,8 @@ def test_search_upstream_failure():
 
     response = client.get("/search?query=Crash")
     
-    assert response.status_code == 502
-    assert "Upstream Service Error" in response.json()["detail"]
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Spotify Down"
 
 def test_identify_invalid_file():
     # Send a text file instead of audio
@@ -76,4 +78,57 @@ def test_identify_invalid_file():
     # Let's see if we can trigger a ValueError.
     # Sending garbage bytes to pydub usually raises an error.
     
-    assert response.status_code in [400, 500] 
+    assert response.status_code == 500
+
+def test_recommend_success():
+    # Setup Mock Returns
+    mock_vector_engine.get_vector.return_value = np.zeros(512, dtype=np.float32)
+    mock_vector_engine.get_concept_vector.return_value = np.zeros(512, dtype=np.float32)
+    
+    # Mock search results
+    mock_hit = {"id": "test_uuid", "payload": {"spotify_id": "spotify_123"}}
+    mock_vector_engine.search.return_value = [mock_hit]
+    
+    # Mock Spotify details
+    mock_spotify_client.get_track_details.return_value = {
+        "id": "spotify_123",
+        "title": "Recommended Song",
+        "artist": "Artist",
+        "genre": "Pop"
+    }
+
+    payload = {
+        "current_song_id": "test_uuid",
+        "knobs": {"Drums": 0.5}
+    }
+    
+    response = client.post("/recommend", json=payload)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["songs"]) == 1
+    assert data["songs"][0]["title"] == "Recommended Song"
+    assert "vector" in data
+
+def test_suggest_success():
+    mock_spotify_client.search_tracks.return_value = [
+        {"title": "Song A", "artist": "Artist A"},
+        {"title": "Song B", "artist": "Artist B"}
+    ]
+    
+    response = client.get("/suggest?query=Song")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["suggestions"]) == 2
+    assert data["suggestions"][0]["title"] == "Song A"
+
+def test_search_not_found():
+    # Ensure the mock returns None for search
+    mock_spotify_client.search.return_value = None
+    
+    response = client.get("/search?query=NonExistentSong")
+    
+    assert response.status_code == 404
+    assert "Song not found" in response.json()["detail"]
+ 

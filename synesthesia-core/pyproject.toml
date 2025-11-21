@@ -16,7 +16,8 @@ dependencies = [
     "qdrant-client",
     "python-dotenv",
     "pydub",
-    "spotipy"
+    "spotipy",
+    "python-multipart"
 ]
 
 [tool.maturin]

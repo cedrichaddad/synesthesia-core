@@ -14,12 +14,17 @@ pub struct Fingerprint {
     pub offset: u32, // The time "anchor" for alignment verification
 }
 
+use numpy::PyReadonlyArray1;
+
 #[pyfunction]
-fn audio_fingerprint(_py: Python, audio_buffer: Vec<f32>) -> PyResult<Vec<Fingerprint>> {
+fn audio_fingerprint(_py: Python, audio_buffer: PyReadonlyArray1<f32>) -> PyResult<Vec<Fingerprint>> {
     let mut fingerprinter = AudioFingerprinter::new();
     
+    // Zero-copy access to the numpy array
+    let audio_slice = audio_buffer.as_slice()?;
+    
     // The Rust engine returns raw tuples (hash, offset)
-    let raw_data = fingerprinter.fingerprint(&audio_buffer);
+    let raw_data = fingerprinter.fingerprint(audio_slice);
     
     // Map to the PyClass struct for Python consumption
     let result = raw_data

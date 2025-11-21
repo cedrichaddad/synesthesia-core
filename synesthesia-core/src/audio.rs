@@ -12,12 +12,14 @@ const BAND_SPLITS: [usize; 4] = [0, 20, 200, WINDOW_SIZE / 2];
 
 pub struct AudioFingerprinter {
     planner: FftPlanner<f32>,
+    window: Vec<f32>,
 }
 
 impl AudioFingerprinter {
     pub fn new() -> Self {
         Self {
             planner: FftPlanner::new(),
+            window: hanning_window(WINDOW_SIZE),
         }
     }
 
@@ -31,7 +33,7 @@ impl AudioFingerprinter {
 
     pub fn fingerprint(&mut self, audio: &[f32]) -> Vec<(u64, usize)> {
         let fft = self.planner.plan_fft_forward(WINDOW_SIZE);
-        let window = hanning_window(WINDOW_SIZE); // In prod, cache this!
+        // Window is now cached in self.window
         
         let num_windows = if audio.len() < WINDOW_SIZE { 
             0 
@@ -50,7 +52,7 @@ impl AudioFingerprinter {
             
             let mut buffer: Vec<Complex<f32>> = audio[start..end]
                 .iter()
-                .zip(&window)
+                .zip(&self.window)
                 .map(|(&sample, &win)| Complex::new(sample * win, 0.0))
                 .collect();
 
@@ -97,7 +99,7 @@ impl AudioFingerprinter {
             spectrogram.push(peaks);
         }
 
-        // 2. GENERATE CONSTELLATION HASHES
+        // 2. GENERATE HASHES
         for (t1, peaks) in spectrogram.iter().enumerate() {
             for &f1 in peaks {
                 // Target Zone: Look 1 to 10 frames ahead
