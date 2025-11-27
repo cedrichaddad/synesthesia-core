@@ -17,7 +17,7 @@ const HoloScreen: React.FC<HoloScreenProps> = ({ currentSong }) => {
             animate={{ opacity: 1 }}
         >
             {/* Main Hologram Glass */}
-            <div className="relative flex-1 border border-cyber-cyan/30 bg-cyber-glass backdrop-blur-md rounded-sm overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.05)]">
+            <div className="relative flex-1 glass-panel rounded-sm overflow-hidden shadow-[0_0_30px_rgba(0,243,255,0.05)]">
 
                 {/* Scanlines & Grid Overlay */}
                 <div className="absolute inset-0 hologram-grid opacity-30 pointer-events-none z-0"></div>
@@ -197,7 +197,7 @@ const HudMetric: React.FC<HudMetricProps> = ({ icon, label, value, color, delay 
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay }}
-        className="bg-cyber-slate/50 p-2 border border-slate-700/50"
+        className="bg-black/40 p-2 border border-cyber-cyan/20 box-glow"
     >
         <div className={`flex items-center gap-2 ${color} text-xs mb-1`}>
             {icon} <span>{label}</span>

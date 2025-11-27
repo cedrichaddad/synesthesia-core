@@ -54,11 +54,11 @@ const Knob: React.FC<KnobProps> = ({ label, value, onChange, color = '#00f3ff' }
     return (
         <div className="flex flex-col items-center gap-2 select-none group relative">
             <div className="relative w-20 h-20 flex items-center justify-center">
-                {/* Backplate */}
-                <div className="absolute inset-0 rounded-full bg-cyber-dark shadow-[inset_0_2px_5px_rgba(0,0,0,0.8)] border border-cyber-slate"></div>
+                {/* Backplate (Holographic Ring) */}
+                <div className="absolute inset-0 rounded-full bg-cyber-black/40 shadow-[0_0_15px_rgba(0,243,255,0.05)] border border-cyber-cyan/20 backdrop-blur-sm"></div>
 
                 {/* Ticks */}
-                <svg className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" viewBox="0 0 100 100">
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100">
                     {Array.from({ length: 21 }).map((_, i) => {
                         const angle = -135 + (i * (270 / 20));
                         const isActive = angle <= rotation;
@@ -67,10 +67,12 @@ const Knob: React.FC<KnobProps> = ({ label, value, onChange, color = '#00f3ff' }
                                 key={i}
                                 x1="50" y1="50"
                                 x2="50" y2="10"
-                                stroke={isActive ? color : '#334155'}
-                                strokeWidth="2"
+                                stroke={isActive ? color : 'rgba(255,255,255,0.1)'}
+                                strokeWidth={isActive ? "2.5" : "1.5"}
                                 transform={`rotate(${angle} 50 50) translate(0, 4)`}
                                 strokeLinecap="round"
+                                className="transition-colors duration-100"
+                                style={{ filter: isActive ? `drop-shadow(0 0 2px ${color})` : 'none' }}
                             />
                         );
                     })}
@@ -78,33 +80,27 @@ const Knob: React.FC<KnobProps> = ({ label, value, onChange, color = '#00f3ff' }
 
                 {/* The Knob Itself */}
                 <motion.div
-                    className="relative w-12 h-12 rounded-full cursor-grab active:cursor-grabbing z-10 shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+                    className="relative w-12 h-12 rounded-full cursor-grab active:cursor-grabbing z-10"
                     style={{
-                        background: 'conic-gradient(from 180deg, #1e293b, #0f172a, #1e293b)',
+                        background: 'radial-gradient(circle at 30% 30%, #2a2a2a, #000000)',
                         transform: `rotate(${rotation}deg)`,
-                    }}
-                    animate={{
                         boxShadow: isDragging
-                            ? `0 0 15px ${color}60` // Bright glow when dragging
-                            : `0 0 0px ${color}00` // No glow, but let the indicator pulse below
+                            ? `0 0 20px ${color}40, inset 0 0 10px rgba(255,255,255,0.1)`
+                            : `0 4px 10px rgba(0,0,0,0.8), inset 0 0 5px rgba(255,255,255,0.05)`
                     }}
                     onMouseDown={handleMouseDown}
                 >
-                    {/* Indicator Line */}
+                    {/* Indicator Line (Laser) */}
                     <motion.div
-                        className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full bg-white"
-                        animate={{
-                            boxShadow: isDragging ? "0 0 8px #fff" : ["0 0 2px #fff", "0 0 6px #fff", "0 0 2px #fff"]
-                        }}
-                        transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            ease: "easeInOut"
+                        className="absolute top-1 left-1/2 -translate-x-1/2 w-0.5 h-4 rounded-full bg-white"
+                        style={{
+                            backgroundColor: color,
+                            boxShadow: `0 0 10px ${color}, 0 0 5px white`
                         }}
                     ></motion.div>
 
-                    {/* Center Cap */}
-                    <div className="absolute inset-3 rounded-full bg-cyber-black opacity-80 border border-gray-700"></div>
+                    {/* Center Cap (Lens) */}
+                    <div className="absolute inset-4 rounded-full bg-black shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"></div>
                 </motion.div>
             </div>
 

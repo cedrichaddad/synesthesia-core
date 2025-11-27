@@ -35,9 +35,23 @@ fn audio_fingerprint(_py: Python, audio_buffer: PyReadonlyArray1<f32>) -> PyResu
     Ok(result)
 }
 
+#[pyfunction]
+fn audio_analyze(_py: Python, audio_buffer: PyReadonlyArray1<f32>) -> PyResult<(f32, f32)> {
+    let mut fingerprinter = AudioFingerprinter::new();
+    
+    // Zero-copy access to the numpy array
+    let audio_slice = audio_buffer.as_slice()?;
+    
+    // Analyze
+    let (rms, flatness) = fingerprinter.analyze(audio_slice);
+    
+    Ok((rms, flatness))
+}
+
 #[pymodule]
 fn core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Fingerprint>()?;
     m.add_function(wrap_pyfunction!(audio_fingerprint, m)?)?;
+    m.add_function(wrap_pyfunction!(audio_analyze, m)?)?;
     Ok(())
 }

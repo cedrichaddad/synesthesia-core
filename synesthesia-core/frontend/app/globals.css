@@ -1,145 +1,98 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  /* Sonic Research Lab Palette */
-  --lab-accent: #00f0ff;
-  /* Cyan */
-  --lab-accent-dim: rgba(0, 240, 255, 0.1);
-  --lab-alert: #ff3366;
-  --lab-bg: #050505;
-  --lab-text: #e0e0e0;
-  --lab-text-dim: #606060;
-
-  /* Legacy Mappings for Compatibility */
-  --radar-green: var(--lab-accent);
-  --alert-amber: var(--lab-alert);
-  --deep-space: var(--lab-bg);
-  --background: var(--lab-bg);
-  --foreground: var(--lab-text);
-
-  /* Font fallbacks */
-  --font-orbitron: 'Orbitron', 'Arial', sans-serif;
-  --font-share-tech: 'Share Tech Mono', 'Courier New', monospace;
-  --font-terminal: 'VT323', 'Courier New', monospace;
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root,
-#__next {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
+    --background: #050505;
+    --foreground: #ededed;
 }
 
 body {
-  font-family: var(--font-share-tech), 'Courier New', monospace;
-  background-color: var(--lab-bg);
-  color: var(--lab-text);
-  overflow: hidden;
-  font-size: 14px;
-  /* Denser data look */
-  line-height: 1.4;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    color: var(--foreground);
+    background: var(--background);
+    font-family: "Courier Prime", monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
 }
 
-.font-display {
-  font-family: var(--font-orbitron), 'Arial', sans-serif !important;
-}
-
-.font-terminal {
-  font-family: var(--font-terminal), 'Courier New', monospace !important;
-}
-
-.font-mono {
-  font-family: var(--font-share-tech), 'Courier New', monospace !important;
-}
-
-/* Custom Scrollbar - Minimal */
+/* Custom Scrollbar for Cyberpunk Feel */
 ::-webkit-scrollbar {
-  width: 4px;
+    width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: #0a0f14;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--lab-text-dim);
-  border-radius: 0px;
-  /* Sharp edges */
+    background: #1e293b;
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--lab-accent);
+    background: #00f3ff;
 }
 
-/* Lab Panel - Clean, minimal borders, no glow */
+/* Utility for hiding scrollbar but keeping functionality */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+/* CYBERPUNK VISUAL FX - Custom Utility Classes */
+
+/* 1. Perspective Grid Background */
+.bg-cyber-grid {
+    background-size: 40px 40px;
+    background-image:
+        linear-gradient(to right, rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+    mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+}
+
+/* 2. CRT Scanline Overlay */
+.crt-overlay {
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+            rgba(0, 0, 0, 0.25) 50%);
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* 3. Neon Glows */
+.text-glow {
+    text-shadow: 0 0 5px rgba(0, 243, 255, 0.5), 0 0 10px rgba(0, 243, 255, 0.3);
+}
+
+.box-glow {
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.1), inset 0 0 20px rgba(0, 243, 255, 0.05);
+}
+
+.border-glow {
+    box-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
+}
+
+/* 4. Glass Panel */
 .glass-panel {
-  background: rgba(10, 10, 10, 0.95) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  border: 1px solid var(--lab-text-dim) !important;
-  box-shadow: none !important;
-  position: relative;
+    background: rgba(10, 15, 20, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 243, 255, 0.1);
 }
 
-/* Optional: Active state for panels */
-.glass-panel:hover {
-  border-color: var(--lab-accent) !important;
-}
-
-/* Grid Background - Replaces Scanlines */
-.lab-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* Utility classes for the aesthetic */
-.text-accent {
-  color: var(--lab-accent) !important;
-}
-
-.border-accent {
-  border-color: var(--lab-accent) !important;
-}
-
-.bg-accent-dim {
-  background-color: var(--lab-accent-dim) !important;
-}
-
-/* Remove old scanlines class but keep it defined to prevent errors if used */
-.scanlines {
-  display: none;
-}
-
-.knob-shadow {
-  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.8));
-}
-
-.text-shadow-neon {
-  text-shadow: 0 0 5px var(--lab-accent-dim) !important;
-  /* Subtler glow */
-}
-
-.clip-path-polygon {
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+/* 5. Hologram Grid */
+.hologram-grid {
+    background-image:
+        linear-gradient(0deg, transparent 24%, rgba(0, 243, 255, 0.05) 25%, rgba(0, 243, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, 0.05) 75%, rgba(0, 243, 255, 0.05) 76%, transparent 77%, transparent),
+        linear-gradient(90deg, transparent 24%, rgba(0, 243, 255, 0.05) 25%, rgba(0, 243, 255, 0.05) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, 0.05) 75%, rgba(0, 243, 255, 0.05) 76%, transparent 77%, transparent);
+    background-size: 20px 20px;
 }

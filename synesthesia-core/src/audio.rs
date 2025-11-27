@@ -31,6 +31,44 @@ impl AudioFingerprinter {
         ((f1 as u64) << 20) | ((f2 as u64) << 8) | (dt as u64)
     }
 
+    pub fn calculate_rms(audio: &[f32]) -> f32 {
+        let sum_squares: f32 = audio.iter().map(|&x| x * x).sum();
+        (sum_squares / audio.len() as f32).sqrt()
+    }
+
+    pub fn calculate_spectral_flatness(&mut self, audio: &[f32]) -> f32 {
+        // Use the first window for analysis (simplification for real-time)
+        if audio.len() < WINDOW_SIZE { return 0.0; }
+        
+        let fft = self.planner.plan_fft_forward(WINDOW_SIZE);
+        let mut buffer: Vec<Complex<f32>> = audio[0..WINDOW_SIZE]
+            .iter()
+            .zip(&self.window)
+            .map(|(&sample, &win)| Complex::new(sample * win, 0.0))
+            .collect();
+            
+        fft.process(&mut buffer);
+        
+        // Calculate Power Spectrum
+        let magnitudes: Vec<f32> = buffer.iter().map(|c| c.norm_sqr()).collect();
+        
+        // Geometric Mean / Arithmetic Mean
+        // Use log sum for geometric mean to avoid underflow
+        let sum_val: f32 = magnitudes.iter().sum();
+        let log_sum: f32 = magnitudes.iter().map(|&x| (x + 1e-10).ln()).sum();
+        
+        let arithmetic_mean = sum_val / WINDOW_SIZE as f32;
+        let geometric_mean = (log_sum / WINDOW_SIZE as f32).exp();
+        
+        if arithmetic_mean == 0.0 { 0.0 } else { geometric_mean / arithmetic_mean }
+    }
+
+    pub fn analyze(&mut self, audio: &[f32]) -> (f32, f32) {
+        let rms = Self::calculate_rms(audio);
+        let flatness = self.calculate_spectral_flatness(audio);
+        (rms, flatness)
+    }
+
     pub fn fingerprint(&mut self, audio: &[f32]) -> Vec<(u64, usize)> {
         let fft = self.planner.plan_fft_forward(WINDOW_SIZE);
         // Window is now cached in self.window

@@ -1,0 +1,79 @@
+{
+    "knobs": [
+        {
+            "id": "energy",
+            "label": "Energy",
+            "min": -1.0,
+            "max": 1.0,
+            "defaultValue": 0.0,
+            "vector": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            "color": "#FF4D4D"
+        },
+        {
+            "id": "valence",
+            "label": "Happiness",
+            "min": -1.0,
+            "max": 1.0,
+            "defaultValue": 0.0,
+            "vector": [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            "color": "#FFD700"
+        },
+        {
+            "id": "danceability",
+            "label": "Groove",
+            "min": -1.0,
+            "max": 1.0,
+            "defaultValue": 0.0,
+            "vector": [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ],
+            "color": "#00FF00"
+        },
+        {
+            "id": "acousticness",
+            "label": "Organic",
+            "min": -1.0,
+            "max": 1.0,
+            "defaultValue": 0.0,
+            "vector": [
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+            ],
+            "color": "#00BFFF"
+        },
+        {
+            "id": "instrumentalness",
+            "label": "Vocals",
+            "min": -1.0,
+            "max": 1.0,
+            "defaultValue": 0.0,
+            "vector": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -1.0
+            ],
+            "color": "#FF00FF"
+        }
+    ]
+}

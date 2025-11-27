@@ -2,17 +2,18 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Knob from './ui/Knob';
-import { KnobState } from '../types';
+import { KnobState, KnobConfig } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Check, X, Settings2 } from 'lucide-react';
 
 interface SynthRackProps {
     knobs: KnobState;
+    config: KnobConfig | null;
     onUpdate: (name: string, val: number) => void;
     onAdd: (name: string) => void;
 }
 
-const SynthRack: React.FC<SynthRackProps> = ({ knobs, onUpdate, onAdd }) => {
+const SynthRack: React.FC<SynthRackProps> = ({ knobs, config, onUpdate, onAdd }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [newKnobName, setNewKnobName] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
@@ -38,48 +39,52 @@ const SynthRack: React.FC<SynthRackProps> = ({ knobs, onUpdate, onAdd }) => {
     };
 
     return (
-        <div className="bg-zinc-900 border-t-4 border-slate-800 rounded-md p-6 shadow-[inset_0_0_20px_rgba(0,0,0,1)] relative overflow-hidden min-h-[400px]">
-            {/* Screws */}
-            <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-zinc-800 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.8)] flex items-center justify-center"><div className="w-full h-0.5 bg-zinc-900 rotate-45"></div></div>
-            <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-zinc-800 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.8)] flex items-center justify-center"><div className="w-full h-0.5 bg-zinc-900 rotate-45"></div></div>
-            <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-zinc-800 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.8)] flex items-center justify-center"><div className="w-full h-0.5 bg-zinc-900 rotate-45"></div></div>
-            <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-zinc-800 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.8)] flex items-center justify-center"><div className="w-full h-0.5 bg-zinc-900 rotate-45"></div></div>
+        <div className="glass-panel rounded-md p-8 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden min-h-[300px] flex flex-col items-center justify-center">
+            {/* Hex Bolts */}
+            <div className="absolute top-3 left-3 w-4 h-4 text-cyber-slate/50"><Settings2 size={20} /></div>
+            <div className="absolute top-3 right-3 w-4 h-4 text-cyber-slate/50"><Settings2 size={20} /></div>
+            <div className="absolute bottom-3 left-3 w-4 h-4 text-cyber-slate/50"><Settings2 size={20} /></div>
+            <div className="absolute bottom-3 right-3 w-4 h-4 text-cyber-slate/50"><Settings2 size={20} /></div>
 
             {/* Label */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 text-zinc-600 font-bold tracking-[0.5em] text-xs border border-zinc-700 px-2 py-0.5 rounded bg-black/30 flex items-center gap-2">
-                <Settings2 size={10} /> FREQ_MODULATOR_V2
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 text-cyber-cyan font-tech font-bold tracking-[0.3em] text-sm border border-cyber-cyan/30 px-4 py-1 rounded bg-black/60 flex items-center gap-2 text-glow shadow-[0_0_10px_rgba(0,243,255,0.1)]">
+                <Settings2 size={12} className="text-cyber-neon" /> FREQ_MODULATOR_V2
             </div>
 
             <motion.div
-                className="grid grid-cols-3 gap-y-8 gap-x-4 mt-8"
+                className="flex flex-row justify-center gap-12 mt-12 items-center flex-wrap w-full max-w-4xl"
                 initial="hidden"
                 animate="visible"
                 variants={{
                     visible: { transition: { staggerChildren: 0.05 } }
                 }}
             >
-                {Object.entries(knobs).map(([name, value], index) => {
-                    // Alternate colors for aesthetic
-                    const color = index % 2 === 0 ? '#00f3ff' : '#00ff41';
-                    return (
+                {config ? (
+                    // Render from Config
+                    config.knobs.map((knobDef) => (
                         <motion.div
-                            key={name}
+                            key={knobDef.id}
                             className="flex justify-center"
                             variants={{
                                 hidden: { opacity: 0, y: 20 },
                                 visible: { opacity: 1, y: 0 }
                             }}
-                            layout // Animate layout changes when items are added
+                            layout
                         >
                             <Knob
-                                label={name}
-                                value={value}
-                                onChange={(val: number) => onUpdate(name, val)}
-                                color={color}
+                                label={knobDef.label}
+                                value={knobs[knobDef.id] ?? 50} // Default to 50 if not found
+                                onChange={(val: number) => onUpdate(knobDef.id, val)}
+                                color={knobDef.color}
                             />
                         </motion.div>
-                    );
-                })}
+                    ))
+                ) : (
+                    // Fallback / Loading State
+                    <div className="col-span-3 text-center text-xs font-mono text-slate-500 animate-pulse">
+                        LOADING_CONFIG...
+                    </div>
+                )}
 
                 {/* Add Module Slot */}
                 <motion.div

@@ -10,6 +10,7 @@ export interface Song {
     energy_level?: number; // 0-100
     coordinates?: string; // Added for UI compatibility
     reason?: string; // Added for UI compatibility
+    vector?: number[]; // 5D Vector for Knob Locking
 }
 
 export interface KnobState {
@@ -56,4 +57,18 @@ export interface RecommendResponse {
         [key: string]: unknown;
     }[];
     vector: number[];
+}
+
+export interface KnobDefinition {
+    id: string;
+    label: string;
+    min: number;
+    max: number;
+    defaultValue: number;
+    vector: number[];
+    color: string;
+}
+
+export interface KnobConfig {
+    knobs: KnobDefinition[];
 }

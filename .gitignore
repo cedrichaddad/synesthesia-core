@@ -5,6 +5,8 @@ __pycache__/
 venv/
 .env
 .DS_Store
+synesthesia-venv
+REVIEW*
 
 # Specific project ignores (recursive)
 target/

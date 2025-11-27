@@ -12,19 +12,16 @@ export const searchSongs = async (query: string): Promise<{ results: Song[] }> =
         title: data.metadata.title,
         artist: data.metadata.artist,
         genre: data.metadata.genre,
-        coordinates: `VEC-[${data.vector.slice(0, 3).map(n => n.toFixed(3)).join(' | ')}]`
+        coordinates: `VEC-[${data.vector.slice(0, 3).map(n => n.toFixed(3)).join(' | ')}]`,
+        vector: data.vector
     };
 
     return { results: [song] };
 };
 
 export const getRecommendations = async (payload: RecommendationPayload): Promise<{ songs: Song[], vector: number[] }> => {
-    // Transform knobs: UI (0-100) → Backend (-1.0 to 1.0)
-    const knobPayload: { [key: string]: number } = {};
-    Object.entries(payload.knobs).forEach(([key, value]) => {
-        const normalizedValue = (value - 50) / 50;
-        knobPayload[key.toLowerCase()] = normalizedValue;
-    });
+    // Transform knobs: Expects normalized values (-1.0 to 1.0) from caller
+    const knobPayload = payload.knobs;
 
     const res = await fetch(`${API_BASE}/recommend`, {
         method: 'POST',
@@ -64,14 +61,22 @@ export const getRecommendations = async (payload: RecommendationPayload): Promis
             coordinates: song.coordinates || coordinates,
             bpm: song.bpm as number | undefined,
             key: song.key as string | undefined,
-            energy_level: song.energy_level as number | undefined
+            energy_level: song.energy_level as number | undefined,
+            vector: song.vector as number[] | undefined
         };
     });
 
     return { songs, vector: data.vector };
 };
 
-export const identifyAudio = async (blob: Blob): Promise<{ song: Song }> => {
+export const identifyAudio = async (blob: Blob): Promise<{
+    song: Song,
+    metadata?: {
+        processing_time: string,
+        fingerprint_count: number
+    },
+    vector?: number[]
+}> => {
     const formData = new FormData();
     formData.append('file', blob, 'recording.webm');
 
@@ -93,6 +98,11 @@ export const identifyAudio = async (blob: Blob): Promise<{ song: Song }> => {
             bpm: 120, // Mock data
             key: 'Cm', // Mock data
             energy_level: 85 // Mock data
-        }
+        },
+        metadata: {
+            processing_time: data.metadata.processing_time,
+            fingerprint_count: data.metadata.fingerprint_count
+        },
+        vector: data.vector // Assuming backend returns this now, or undefined
     };
 };

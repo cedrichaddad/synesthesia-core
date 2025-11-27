@@ -8,21 +8,47 @@ from .vector import VectorEngine
 class SpotifyClient:
     def __init__(self):
         # Initialize Spotipy with OAuth for user data
-        # Expects SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI in env
-        # Fallback to Client Credentials if no user auth is needed, but here we want user data eventually.
-        # For now, we hardcode the redirect_uri as requested or rely on env.
-        # The user asked to USE the specific URL in config.
+        self.mock_mode = False
         
-        redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:3000/callback")
-        
-        auth_manager = SpotifyOAuth(
-            scope="user-top-read",
-            redirect_uri=redirect_uri,
-            open_browser=False
-        )
-        self.sp = spotipy.Spotify(auth_manager=auth_manager)
+        try:
+            client_id = os.getenv("SPOTIPY_CLIENT_ID")
+            client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
+            
+            if not client_id or not client_secret:
+                print("Warning: Spotify credentials not found. Switching to Mock Mode.")
+                self.mock_mode = True
+                return
+
+            redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:3000/callback")
+            
+            auth_manager = SpotifyOAuth(
+                scope="user-top-read",
+                redirect_uri=redirect_uri,
+                open_browser=False
+            )
+            self.sp = spotipy.Spotify(auth_manager=auth_manager)
+        except Exception as e:
+            print(f"Spotify Auth failed ({e}). Switching to Mock Mode.")
+            self.mock_mode = True
 
     def get_initial_tracks(self, limit: int = 50) -> List[Dict]:
+        if self.mock_mode:
+            print("Mock Mode: Returning dummy tracks.")
+            return [
+                {
+                    "id": f"mock_track_{i}",
+                    "artist": f"Mock Artist {i}",
+                    "title": f"Mock Song {i}",
+                    "genre": "Mock Genre",
+                    "energy": 0.5 + (i % 10) * 0.05,
+                    "valence": 0.5,
+                    "danceability": 0.5,
+                    "acousticness": 0.5,
+                    "instrumentalness": 0.0
+                }
+                for i in range(limit)
+            ]
+
         """
         Hybrid Fetch Strategy:
         1. Try to fetch the current user's top tracks (Personalized).
@@ -57,17 +83,20 @@ class SpotifyClient:
     def _process_tracks_bulk(self, tracks: List[Dict]) -> List[Dict]:
         """
         Efficiently process a list of raw Spotify track objects.
-        Batches artist lookups to avoid N+1 API calls.
+        Batches artist lookups and audio feature fetches.
         """
         processed_tracks = []
         artist_ids = set()
+        track_ids = []
         
-        # 1. Collect all Artist IDs
+        # 1. Collect IDs
         for track in tracks:
-            if track and track.get('artists'):
-                artist_ids.add(track['artists'][0]['id'])
+            if track:
+                if track.get('artists'):
+                    artist_ids.add(track['artists'][0]['id'])
+                track_ids.append(track['id'])
         
-        # 2. Batch Fetch Artist Details (Chunked by 50, Spotify limit)
+        # 2. Batch Fetch Artist Details
         artist_genre_map = {}
         artist_id_list = list(artist_ids)
         
@@ -78,12 +107,15 @@ class SpotifyClient:
                 for artist in artists_info['artists']:
                     if artist:
                         genres = artist.get('genres', [])
-                        # Use first genre or default to Pop
                         artist_genre_map[artist['id']] = genres[0].title() if genres else "Pop"
             except Exception as e:
                 print(f"Error fetching artist batch: {e}")
+
+        # 3. Batch Fetch Audio Features - DEPRECATED / REMOVED
+        # We no longer fetch features from Spotify. The Ark (Qdrant) provides them.
+        # audio_features_map = {}
         
-        # 3. Format Tracks using the map
+        # 4. Format Tracks
         for track in tracks:
             try:
                 if not track: continue
@@ -94,14 +126,21 @@ class SpotifyClient:
                 if track.get('artists'):
                     artist = track['artists'][0]
                     artist_name = artist['name']
-                    # Lookup genre from our batch-fetched map
                     genre = artist_genre_map.get(artist['id'], "Pop")
+                
+                # Audio Features are now sourced from The Ark (Qdrant) in api.py
+                # We return 0.0 here as placeholders.
                 
                 processed_tracks.append({
                     "id": track['id'],
                     "artist": artist_name,
                     "title": track['name'],
-                    "genre": genre
+                    "genre": genre,
+                    "energy": 0.0,
+                    "valence": 0.0,
+                    "danceability": 0.0,
+                    "acousticness": 0.0,
+                    "instrumentalness": 0.0
                 })
             except Exception as e:
                 print(f"Error formatting track {track.get('name', 'Unknown')}: {e}")
@@ -120,6 +159,19 @@ class SpotifyClient:
         return self.get_initial_tracks(limit)
 
     def search(self, query: str) -> Dict:
+        if self.mock_mode:
+            return {
+                "id": "mock_search_result",
+                "artist": "Mock Artist",
+                "title": query,
+                "genre": "Mock Genre",
+                "energy": 0.8,
+                "valence": 0.5,
+                "danceability": 0.6,
+                "acousticness": 0.2,
+                "instrumentalness": 0.0
+            }
+
         results = self.sp.search(q=query, type='track', limit=1)
         items = results['tracks']['items']
         if not items:
@@ -135,43 +187,43 @@ class SpotifyClient:
 
     def search_tracks(self, query: str, limit: int = 5) -> List[Dict]:
         """Search for tracks and return a list of results."""
+        if self.mock_mode:
+            return [
+                {
+                    "id": f"mock_search_{i}",
+                    "artist": "Mock Artist",
+                    "title": f"{query} {i}",
+                    "genre": "Mock Genre",
+                    "energy": 0.5,
+                    "valence": 0.5,
+                    "danceability": 0.5,
+                    "acousticness": 0.5,
+                    "instrumentalness": 0.0
+                }
+                for i in range(limit)
+            ]
+
         results = self.sp.search(q=query, type='track', limit=limit)
         items = results['tracks']['items']
-        tracks = []
-        for item in items:
-            tracks.append(self._format_track(item))
-        return tracks
+        return self._process_tracks_bulk(items)
 
-    def generate_user_profile(self, vector_engine: VectorEngine) -> Dict:
-        tracks = self.get_initial_tracks()
-        vectors = []
-        prompts = []
-        
-        for t in tracks:
-            # String Interpolation: "A {genre} song by {artist} titled {track_name}"
-            prompt = f"A {t['genre']} song by {t['artist']} titled {t['title']}"
-            prompts.append(prompt)
-            
-            # Generate vector using the engine
-            vec = vector_engine.get_concept_vector(prompt)
-            vectors.append(vec)
-        
-        if not vectors:
-            centroid = np.zeros(512, dtype=np.float32)
-        else:
-            centroid = np.mean(vectors, axis=0)
-        
-        return {
-            "user_id": "mock_user",
-            "vibe_profile": {
-                "centroid_vector": centroid.tolist(),
-                "top_concepts": [t['genre'] for t in tracks],
-                "prompts": prompts
-            }
-        }
+
 
     def get_track_details(self, track_id: str) -> Dict:
         """Fetch details for a single track by ID."""
+        if self.mock_mode:
+            return {
+                "id": track_id,
+                "artist": "Mock Artist",
+                "title": "Mock Title",
+                "genre": "Mock Genre",
+                "energy": 0.5,
+                "valence": 0.5,
+                "danceability": 0.5,
+                "acousticness": 0.5,
+                "instrumentalness": 0.0
+            }
+
         try:
             track = self.sp.track(track_id)
             return self._format_track(track)
