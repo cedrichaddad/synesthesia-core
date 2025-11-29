@@ -1,0 +1,132 @@
+Screen {
+    layout: grid;
+    grid-size: 1 2; /* 1 Column, 2 Rows */
+    grid-rows: 1fr 1fr;
+    background: #111;
+    color: #0f0;
+}
+
+#top-row {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 1fr 1fr;
+    height: 100%;
+}
+
+#bottom-row {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 3fr 2fr; /* 60% / 40% */
+    height: 100%;
+}
+
+/* Panel Styles */
+#scope {
+    border: solid green;
+    background: #000;
+}
+
+#vector-monitor {
+    border: solid blue;
+    background: #000;
+    height: 1fr;
+}
+
+#log {
+    border: solid cyan;
+    background: #000;
+}
+
+#track-info {
+    border: solid yellow;
+    background: #000;
+}
+
+/* Widget Specifics */
+Label {
+    padding: 0 1;
+}
+
+.header {
+    text-align: center;
+    background: #333;
+    color: #fff;
+    margin-bottom: 1;
+}
+
+ProgressBar {
+    width: 100%;
+    height: 1;
+    margin-bottom: 1;
+}
+
+.bar-red > .bar--bar { color: red; }
+.bar-blue > .bar--bar { color: blue; }
+.bar-green > .bar--bar { color: green; }
+.bar-yellow > .bar--bar { color: yellow; }
+.bar-cyan > .bar--bar { color: cyan; }
+
+Header {
+    dock: top;
+    height: 1;
+    background: #222;
+    color: #fff;
+}
+
+#track-title {
+    text-style: bold;
+    color: white;
+    background: #222;
+    width: 100%;
+    text-align: center;
+}
+
+#track-artist {
+    color: #aaa;
+    width: 100%;
+    text-align: center;
+}
+
+#track-source {
+    color: #888;
+}
+
+#track-distance {
+    color: #888;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+    background: #222;
+    color: #fff;
+}
+
+.selected {
+    text-style: bold reverse;
+    color: #fff;
+    background: #444;
+}
+
+#monitor-column {
+    width: 100%;
+    height: 100%;
+}
+
+Input {
+    width: 100%;
+    height: 3;
+    border: solid #555;
+    background: #111;
+    color: #0f0;
+}
+
+Input:focus {
+    border: double #0f0;
+}
+
+.help-text {
+    text-align: center;
+    color: #666;
+    padding-top: 1;
+}
