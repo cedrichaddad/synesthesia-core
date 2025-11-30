@@ -7,9 +7,10 @@ from typing import Optional
 
 # Try to import the Rust extension
 try:
-    from synesthesia.core import audio_analyze
+    from synesthesia.core import audio_analyze, audio_fingerprint
 except ImportError:
     audio_analyze = None
+    audio_fingerprint = None
 
 class DSP:
     def __init__(self, sample_rate=44100, block_size=2048):
@@ -20,6 +21,10 @@ class DSP:
         self.paused = False
         self.stream = None
         self.thread = None
+        
+        # Buffering for Fingerprinting (needs > 4096 samples)
+        self.buffer = np.array([], dtype=np.float32)
+        self.min_size = 4096 + 2048 # Window + Hop
 
     def pause(self):
         self.paused = True
@@ -67,6 +72,31 @@ class DSP:
         # Flatten to 1D array for Rust
         audio_data = indata[:, 0].astype(np.float32)
         
+        # Append to buffer
+        self.buffer = np.append(self.buffer, audio_data)
+
+        fingerprints = []
+        
+        # Process if we have enough data
+        if len(self.buffer) >= self.min_size:
+            chunk = self.buffer
+            
+            if audio_fingerprint:
+                # Returns list of (hash, time_offset)
+                raw_fingerprints = audio_fingerprint(chunk)
+                
+                # Unpack hashes for visualization
+                # Hash format: [Unused: 32] [F1: 12] [F2: 12] [Delta: 8]
+                for (h, t) in raw_fingerprints:
+                    f1 = (h >> 20) & 0xFFF
+                    dt = h & 0xFF
+                    fingerprints.append((f1, dt))
+            
+            # Keep overlap for next frame
+            overlap = 2048
+            if len(self.buffer) > overlap:
+                self.buffer = self.buffer[-overlap:]
+        
         try:
             if audio_analyze:
                 # Call Rust extension
@@ -81,7 +111,8 @@ class DSP:
                 "rms": float(rms),
                 "spectral_centroid": float(flatness), # Using flatness as proxy
                 "bpm": 120.0, # Mock
-                "is_transient": rms > 0.1 # Simple threshold
+                "is_transient": rms > 0.1, # Simple threshold
+                "stars": fingerprints
             }
             
             # Avoid queue overflow
@@ -105,11 +136,20 @@ class DSP:
             rms = (math.sin(t) + 1) / 2 * 0.5
             flatness = random.random()
             
+            # Mock stars
+            stars = []
+            if random.random() > 0.5:
+                for _ in range(random.randint(1, 5)):
+                    f1 = random.randint(100, 4000)
+                    dt = random.randint(1, 60)
+                    stars.append((f1, dt))
+
             features = {
                 "rms": rms,
                 "spectral_centroid": flatness,
                 "bpm": 120.0,
-                "is_transient": rms > 0.8
+                "is_transient": rms > 0.8,
+                "stars": stars
             }
             
             if self.queue.qsize() < 10:

@@ -16,11 +16,7 @@ from ui.widgets.vector_monitor import VectorMonitor
 from ui.widgets.log import Log
 from ui.widgets.track_info import TrackInfo
 
-from services.dsp import DSP
-from services.vector import VectorEngine
-from services.spotify import SpotifyClient
-from services.ark import Ark
-from services.navigation import Navigation
+from services.controller import SystemController
 
 from textual import work
 
@@ -39,21 +35,17 @@ class SynesthesiaApp(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        # Initialize Services
-        self.dsp = DSP()
-        self.ve = VectorEngine()
-        self.sp = SpotifyClient()
-        self.ark = Ark(self.ve)
-        self.nav = Navigation(self.ve, self.sp)
-        
-        self.dsp.start()
+        # Initialize System Controller
+        self.controller = SystemController()
+        self.controller.start()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         
         # Top Row
         with Container(id="top-row"):
-            yield Scope(self.dsp.queue, id="scope")
+            # Access DSP queue via controller
+            yield Scope(self.controller.dsp.queue, id="scope")
             with Vertical(id="monitor-column"):
                 yield Input(placeholder="Search Spotify...", id="search-input")
                 yield VectorMonitor(id="vector-monitor")
@@ -68,56 +60,31 @@ class SynesthesiaApp(App):
     def on_descendant_focus(self, event):
         # Pause DSP and Game Loop when typing
         if event.control.id == "search-input":
-            self.dsp.pause()
+            self.controller.dsp.pause()
             
     def on_descendant_blur(self, event):
         # Resume DSP and Game Loop when done typing
         if event.control.id == "search-input":
-            self.dsp.resume()
+            self.controller.dsp.resume()
 
     def on_mount(self):
         # Start Ark Ingestion in background
         self.log_widget = self.query_one("#log", Log)
         self.log_widget.log_info("Initializing Synesthesia Core...")
         
-        self.ingesting = True # Flag to prevent lock contention
-        threading.Thread(target=self.run_ingest, daemon=True).start()
+        # Define callback to update log from thread
+        def log_callback(msg):
+            self.call_from_thread(self.log_widget.log_info, msg)
+
+        # Start Ingestion via Controller
+        self.controller.handle_ingest(callback=log_callback)
         
         # Start Game Loop (10Hz)
         self.set_interval(0.1, self.game_loop)
 
-    def run_ingest(self):
-        # Check if ingestion needed
-        self.call_from_thread(self.log_widget.log_info, "Checking Ark Status...")
-        
-        # DIAGNOSTIC: List all collections
-        try:
-            collections = self.ve.qdrant.get_collections().collections
-            for col in collections:
-                info = self.ve.qdrant.get_collection(col.name)
-                count = info.points_count
-                config = info.config.params.vectors
-                self.call_from_thread(self.log_widget.log_info, f"Col: {col.name} | Cnt: {count} | Cfg: {config}")
-        except Exception as e:
-            self.call_from_thread(self.log_widget.log_info, f"Diagnostic Error: {e}")
-
-        # Check count first to avoid unnecessary lock contention
-        count = self.ve.get_count()
-        if count > 0:
-            self.call_from_thread(self.log_widget.log_info, f"Ark Online. {count} vectors loaded.")
-            self.ingesting = False
-            return
-
-        # Define callback to update log from thread
-        def log_callback(msg):
-            self.call_from_thread(self.log_widget.log_info, msg)
-            
-        self.ark.ingest("data/tracks_features.csv", callback=log_callback)
-        self.ingesting = False
-
     def game_loop(self):
         # Prevent lock contention during ingestion
-        if getattr(self, 'ingesting', False):
+        if self.controller.ingesting:
             return
 
         # Pause game loop if user is typing
@@ -136,41 +103,32 @@ class SynesthesiaApp(App):
 
     @work(exclusive=True, thread=True)
     def run_game_tick(self, current_vector):
-        # Tick Navigation (Blocking)
-        result = self.nav.tick(current_vector)
+        # Tick Controller (Blocking)
+        result = self.controller.tick(current_vector)
         
         if result:
             self.call_from_thread(self._handle_nav_result, result)
-        # else:
-            # self.call_from_thread(self.log_widget.log_info, "Tick: No Result")
 
     def _handle_nav_result(self, result):
         try:
-            with open("debug_ui.log", "a") as f:
-                f.write(f"Handling Result: {result}\n")
-                
             if result['type'] == 'found':
                 track = result['track']
-                with open("debug_ui.log", "a") as f:
-                    f.write(f"Track: {track}\n")
-                    
                 self.log_widget.log_found(f"{track.get('artist')} - {track.get('title')}")
                 self.query_one("#track-info", TrackInfo).update_track(track, result.get('distance', 0.0))
             elif result['type'] == 'void':
                 self.log_widget.log_void()
         except Exception as e:
-            with open("debug_ui.log", "a") as f:
-                f.write(f"UI Error: {e}\n")
+            self.log_widget.log_error(f"UI Error: {e}")
 
     def on_unmount(self):
-        self.dsp.stop()
+        self.controller.stop()
 
     def action_toggle_mic(self):
-        if self.dsp.running:
-            self.dsp.stop()
+        if self.controller.dsp.running:
+            self.controller.dsp.stop()
             self.notify("Mic Stopped")
         else:
-            self.dsp.start()
+            self.controller.dsp.start()
             self.notify("Mic Started")
 
     def on_input_submitted(self, event: Input.Submitted):
@@ -185,36 +143,38 @@ class SynesthesiaApp(App):
     def run_text_search(self, query: str):
         self.call_from_thread(self.log_widget.log_info, f"Searching Spotify: {query}...")
         
-        # Search Spotify
-        track = self.sp.search(query)
+        # Search via Controller
+        result = self.controller.handle_search(query)
         
-        if track and track.get('title') == "Error":
-            self.call_from_thread(self.log_widget.log_info, "Spotify Error / Timeout")
-        elif track and track.get('id'):
-            track_id = track['id']
-            # Play Track
-            self.sp.play_track(track_id)
-            
-            # Try to get vector from Ark
-            vector_data = self.ve.get_track_data(track_id)
-            
-            if vector_data:
-                vector, payload = vector_data
-                # Update Monitor
-                self.call_from_thread(self.update_monitor, vector)
-                self.call_from_thread(self.log_widget.log_found, f"{track.get('artist')} - {track.get('title')}")
-                self.call_from_thread(self.query_one("#track-info", TrackInfo).update_track, track, 0.0)
-            else:
-                # Track found in Spotify but not in Ark
-                self.call_from_thread(self.log_widget.log_info, f"Playing: {track.get('title')} (Not in Ark)")
-                self.call_from_thread(self.query_one("#track-info", TrackInfo).update_track, track, -1.0)
-        else:
-            self.call_from_thread(self.log_widget.log_void)
+        if "error" in result:
+            self.call_from_thread(self.log_widget.log_info, result["error"])
+            return
+
+        # Handle Success
+        song_id = result['song_id']
+        metadata = result['metadata']
+        vector = result['vector']
+        
+        # Play Track (Controller handles playback in handle_search? No, handle_search just returns data. 
+        # Wait, handle_search in controller DOES NOT play the track. api.py didn't play it, it just returned it.
+        # But ui/app.py's run_text_search DID play it.
+        # I should probably add playback to handle_search or do it here.
+        # Let's do it here for now, or add play_track to controller.
+        
+        # Controller doesn't expose play_track directly. 
+        # I'll access sp via controller for now to keep it simple, or add a method.
+        # Actually, let's add play_track to controller? No, let's just use self.controller.sp.play_track
+        
+        self.controller.sp.play_track(metadata['id']) # Use Spotify ID, not UUID
+        
+        # Update Monitor
+        self.call_from_thread(self.update_monitor, vector)
+        self.call_from_thread(self.log_widget.log_found, f"{metadata.get('artist')} - {metadata.get('title')}")
+        self.call_from_thread(self.query_one("#track-info", TrackInfo).update_track, metadata, 0.0)
 
     def update_monitor(self, vector):
         vm = self.query_one("#vector-monitor", VectorMonitor)
         # Update reactive values
-        # vector is numpy array [energy, valence, dance, acoustic, instrumental]
         vm.energy = float(vector[0])
         vm.valence = float(vector[1])
         vm.danceability = float(vector[2])
@@ -234,7 +194,7 @@ class SynesthesiaApp(App):
 
     @work(exclusive=True, thread=True)
     def run_force_search(self, current_vector):
-        result = self.nav.force_search(current_vector)
+        result = self.controller.force_search(current_vector)
         if result:
             self.call_from_thread(self._handle_nav_result, result)
         else:

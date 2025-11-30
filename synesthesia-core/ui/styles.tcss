@@ -26,6 +26,17 @@ Screen {
     background: #000;
 }
 
+#constellation {
+    height: 1fr;
+    border-bottom: solid #004400;
+}
+
+Sparkline {
+    height: 3;
+    margin: 1 1;
+    color: #0f0;
+}
+
 #vector-monitor {
     border: solid blue;
     background: #000;

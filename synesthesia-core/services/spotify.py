@@ -6,15 +6,17 @@ from typing import List, Dict, Optional
 class SpotifyClient:
     def __init__(self):
         self.mock_mode = False
-        try:
-            client_id = os.getenv("SPOTIPY_CLIENT_ID")
-            client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
-            
-            if not client_id or not client_secret:
-                print("Spotify credentials not found. Switching to Mock Mode.")
+        client_id = os.getenv("SPOTIPY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            if os.getenv("SYN_ENV") == "DEV":
+                print("⚠️  WARNING: Running in MOCK MODE (No Spotify Credentials)")
                 self.mock_mode = True
                 return
+            else:
+                raise RuntimeError("FATAL: Spotify Credentials Missing in .env file. Set SYN_ENV=DEV to bypass.")
 
+        try:
             redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:3000/callback")
             
             auth_manager = SpotifyOAuth(

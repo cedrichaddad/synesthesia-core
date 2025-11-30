@@ -13,6 +13,10 @@ const BAND_SPLITS: [usize; 4] = [0, 20, 200, WINDOW_SIZE / 2];
 pub struct AudioFingerprinter {
     planner: FftPlanner<f32>,
     window: Vec<f32>,
+    // Pre-allocated buffers for reuse
+    fft_buffer: Vec<Complex<f32>>,
+    peaks_buffer: Vec<usize>,
+    band_peaks_buffer: Vec<(usize, f32)>,
 }
 
 impl AudioFingerprinter {
@@ -20,42 +24,45 @@ impl AudioFingerprinter {
         Self {
             planner: FftPlanner::new(),
             window: hanning_window(WINDOW_SIZE),
+            fft_buffer: vec![Complex::zero(); WINDOW_SIZE],
+            peaks_buffer: Vec::with_capacity(64),
+            band_peaks_buffer: Vec::with_capacity(32),
         }
     }
 
-    /// Packs two frequencies and a time delta into a single 64-bit integer.
-    /// Layout: [Unused: 32] [F1: 12] [F2: 12] [Delta: 8]
-    /// This fits perfectly in a register and compares instantly.
     #[inline(always)]
     fn pack_hash(f1: usize, f2: usize, dt: usize) -> u64 {
         ((f1 as u64) << 20) | ((f2 as u64) << 8) | (dt as u64)
     }
 
     pub fn calculate_rms(audio: &[f32]) -> f32 {
+        if audio.is_empty() { return 0.0; }
         let sum_squares: f32 = audio.iter().map(|&x| x * x).sum();
         (sum_squares / audio.len() as f32).sqrt()
     }
 
     pub fn calculate_spectral_flatness(&mut self, audio: &[f32]) -> f32 {
-        // Use the first window for analysis (simplification for real-time)
         if audio.len() < WINDOW_SIZE { return 0.0; }
         
         let fft = self.planner.plan_fft_forward(WINDOW_SIZE);
-        let mut buffer: Vec<Complex<f32>> = audio[0..WINDOW_SIZE]
-            .iter()
-            .zip(&self.window)
-            .map(|(&sample, &win)| Complex::new(sample * win, 0.0))
-            .collect();
+        
+        // Prepare buffer
+        for (i, (&sample, &win)) in audio.iter().zip(&self.window).enumerate().take(WINDOW_SIZE) {
+            self.fft_buffer[i] = Complex::new(sample * win, 0.0);
+        }
             
-        fft.process(&mut buffer);
+        fft.process(&mut self.fft_buffer);
         
-        // Calculate Power Spectrum
-        let magnitudes: Vec<f32> = buffer.iter().map(|c| c.norm_sqr()).collect();
+        // Calculate power spectrum
+        // Use a small epsilon to avoid log(0)
+        let mut sum_val = 0.0;
+        let mut log_sum = 0.0;
         
-        // Geometric Mean / Arithmetic Mean
-        // Use log sum for geometric mean to avoid underflow
-        let sum_val: f32 = magnitudes.iter().sum();
-        let log_sum: f32 = magnitudes.iter().map(|&x| (x + 1e-10).ln()).sum();
+        for c in &self.fft_buffer {
+            let mag = c.norm_sqr();
+            sum_val += mag;
+            log_sum += (mag + 1e-10).ln();
+        }
         
         let arithmetic_mean = sum_val / WINDOW_SIZE as f32;
         let geometric_mean = (log_sum / WINDOW_SIZE as f32).exp();
@@ -70,87 +77,73 @@ impl AudioFingerprinter {
     }
 
     pub fn fingerprint(&mut self, audio: &[f32]) -> Vec<(u64, usize)> {
+        if audio.len() < WINDOW_SIZE { return Vec::new(); }
+
         let fft = self.planner.plan_fft_forward(WINDOW_SIZE);
-        // Window is now cached in self.window
+        let num_windows = (audio.len() - WINDOW_SIZE) / HOP_SIZE;
         
-        let num_windows = if audio.len() < WINDOW_SIZE { 
-            0 
-        } else {
-            (audio.len() - WINDOW_SIZE) / HOP_SIZE 
-        };
-        
-        // Pre-allocate to avoid reallocation spikes
+        // We still need to store the full spectrogram history for the look-ahead
+        // but we can optimize the inner loops.
+        // For a true streaming implementation, this would be a ring buffer.
+        // For this batch implementation, we'll keep the vector of vectors but optimize the inner allocation.
         let mut spectrogram = Vec::with_capacity(num_windows);
         let mut fingerprints = Vec::new();
 
         // 1. COMPUTE SPECTROGRAM
         for i in 0..num_windows {
             let start = i * HOP_SIZE;
-            let end = start + WINDOW_SIZE;
             
-            let mut buffer: Vec<Complex<f32>> = audio[start..end]
-                .iter()
-                .zip(&self.window)
-                .map(|(&sample, &win)| Complex::new(sample * win, 0.0))
-                .collect();
+            // Fill buffer
+            for (j, (&sample, &win)) in audio[start..].iter().zip(&self.window).enumerate().take(WINDOW_SIZE) {
+                self.fft_buffer[j] = Complex::new(sample * win, 0.0);
+            }
 
-            fft.process(&mut buffer);
+            fft.process(&mut self.fft_buffer);
 
-            // Peak Picking with Bands
-            let mut peaks = Vec::new();
+            // Reuse peak buffer for this frame
+            self.peaks_buffer.clear();
             
-            // Iterate over our 3 frequency bands (Low, Mid, High)
             for band in 0..3 {
                 let min_bin = BAND_SPLITS[band];
                 let max_bin = BAND_SPLITS[band + 1];
                 
-                let mut band_peaks = Vec::new();
+                self.band_peaks_buffer.clear();
 
-                // Find Local Maxima in this band
                 for bin in min_bin..max_bin {
-                    if bin == 0 || bin >= buffer.len() - 1 { continue; }
+                    if bin == 0 || bin >= WINDOW_SIZE - 1 { continue; }
                     
-                    let mag = buffer[bin].norm();
-                    let mag_prev = buffer[bin - 1].norm();
-                    let mag_next = buffer[bin + 1].norm();
+                    let mag = self.fft_buffer[bin].norm();
+                    let mag_prev = self.fft_buffer[bin - 1].norm();
+                    let mag_next = self.fft_buffer[bin + 1].norm();
 
-                    // Must be a local peak
                     if mag > mag_prev && mag > mag_next {
-                        // Convert to dB: 20 * log10(mag)
                         let db = 20.0 * mag.log10();
-                        
-                        // Noise Floor Threshold (e.g., -40dB relative to max, or fixed)
                         if db > 10.0 { 
-                            band_peaks.push((bin, db));
+                            self.band_peaks_buffer.push((bin, db));
                         }
                     }
                 }
 
-                // Keep top K strongest peaks per band (prevents loud highs from hiding bass)
-                band_peaks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                band_peaks.truncate(5); // Keep top 5 per band -> 15 peaks total per frame
+                // Sort and take top 5
+                self.band_peaks_buffer.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
                 
-                for (bin, _) in band_peaks {
-                    peaks.push(bin);
+                for (bin, _) in self.band_peaks_buffer.iter().take(5) {
+                    self.peaks_buffer.push(*bin);
                 }
             }
-            spectrogram.push(peaks);
+            // We have to clone here to persist the frame in the spectrogram history
+            spectrogram.push(self.peaks_buffer.clone());
         }
 
         // 2. GENERATE HASHES
         for (t1, peaks) in spectrogram.iter().enumerate() {
             for &f1 in peaks {
-                // Target Zone: Look 1 to 10 frames ahead
                 let look_ahead_max = (t1 + 10).min(spectrogram.len());
                 
                 for t2 in (t1 + 1)..look_ahead_max {
                     let dt = t2 - t1;
-                    
                     for &f2 in &spectrogram[t2] {
-                        // Generate the fingerprint
                         let hash = Self::pack_hash(f1, f2, dt);
-                        
-                        // Important: Return (Hash, Anchor_Time)
                         fingerprints.push((hash, t1));
                     }
                 }
