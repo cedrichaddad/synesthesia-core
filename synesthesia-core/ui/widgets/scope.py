@@ -68,21 +68,25 @@ class Scope(Static):
 
     def update_scope(self):
         try:
-            latest = None
+            if self.dsp_queue.empty(): return
+
+            batch_stars = []
+            last_rms = 0.0
+            last_flatness = 0.0
+
+            # Drain queue but KEEP the transient data
             while not self.dsp_queue.empty():
-                latest = self.dsp_queue.get_nowait()
-            
-            if not latest: return
+                item = self.dsp_queue.get_nowait()
+                batch_stars.extend(item.get('stars', [])) # Accumulate stars
+                last_rms = item.get('rms', 0)             # RMS is continuous, taking last is fine
+                last_flatness = item.get('spectral_centroid', 0)
 
-            # Update Constellation
-            self.constellation.update_stars(latest.get('stars', []), latest.get('rms', 0))
+            # Update Constellation with ALL stars found since last frame
+            self.constellation.update_stars(batch_stars, last_rms)
 
-            # Update Sparklines
-            rms = latest['rms']
-            flatness = latest['spectral_centroid']
-            
-            self.rms_sparkline.data = (self.rms_sparkline.data[1:] + [rms])
-            self.flatness_sparkline.data = (self.flatness_sparkline.data[1:] + [flatness])
+            # Update Sparklines with latest values
+            self.rms_sparkline.data = (self.rms_sparkline.data[1:] + [last_rms])
+            self.flatness_sparkline.data = (self.flatness_sparkline.data[1:] + [last_flatness])
 
         except Exception:
             pass

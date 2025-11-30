@@ -132,12 +132,13 @@ class SynesthesiaApp(App):
             self.notify("Mic Started")
 
     def on_input_submitted(self, event: Input.Submitted):
-        # Handle text search from VectorMonitor
+        """Handle search input submission."""
         query = event.value
         if query:
             self.run_text_search(query)
-            # Clear input
             event.input.value = ""
+            # Release focus so the game loop resumes
+            self.set_focus(None)
 
     @work(exclusive=True, thread=True)
     def run_text_search(self, query: str):

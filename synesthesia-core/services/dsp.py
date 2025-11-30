@@ -3,6 +3,7 @@ import numpy as np
 import threading
 import queue
 import time
+import collections
 from typing import Optional
 
 # Try to import the Rust extension
@@ -23,8 +24,9 @@ class DSP:
         self.thread = None
         
         # Buffering for Fingerprinting (needs > 4096 samples)
-        self.buffer = np.array([], dtype=np.float32)
         self.min_size = 4096 + 2048 # Window + Hop
+        # Use deque for O(1) appends, maxlen prevents infinite growth
+        self.buffer = collections.deque(maxlen=self.min_size * 2)
 
     def pause(self):
         self.paused = True
@@ -72,30 +74,31 @@ class DSP:
         # Flatten to 1D array for Rust
         audio_data = indata[:, 0].astype(np.float32)
         
-        # Append to buffer
-        self.buffer = np.append(self.buffer, audio_data)
+        # Efficient append
+        self.buffer.extend(audio_data)
 
         fingerprints = []
         
         # Process if we have enough data
         if len(self.buffer) >= self.min_size:
-            chunk = self.buffer
+            # Convert deque to numpy array for Rust (copy is unavoidable here but better than np.append)
+            # We take the last N samples needed
+            chunk = np.array(self.buffer, dtype=np.float32)
             
             if audio_fingerprint:
                 # Returns list of (hash, time_offset)
                 raw_fingerprints = audio_fingerprint(chunk)
                 
                 # Unpack hashes for visualization
-                # Hash format: [Unused: 32] [F1: 12] [F2: 12] [Delta: 8]
+                # Rust pack_hash: ((f1 as u64) << 20) | ((f2 as u64) << 8) | (dt as u64)
+                # Layout: [Unused: 32] [F1: 12] [F2: 12] [Delta: 8]
                 for (h, t) in raw_fingerprints:
                     f1 = (h >> 20) & 0xFFF
                     dt = h & 0xFF
                     fingerprints.append((f1, dt))
             
-            # Keep overlap for next frame
-            overlap = 2048
-            if len(self.buffer) > overlap:
-                self.buffer = self.buffer[-overlap:]
+            # Note: deque handles the sliding window automatically via maxlen, 
+            # but for overlapping FFTs we just keep streaming.
         
         try:
             if audio_analyze:

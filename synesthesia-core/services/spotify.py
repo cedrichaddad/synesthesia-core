@@ -26,8 +26,12 @@ class SpotifyClient:
             )
             self.sp = spotipy.Spotify(auth_manager=auth_manager, requests_timeout=5)
         except Exception as e:
-            print(f"Spotify Auth failed ({e}). Switching to Mock Mode.")
-            self.mock_mode = True
+            if os.getenv("SYN_ENV") == "DEV":
+                print(f"Spotify Auth failed ({e}). Switching to Mock Mode.")
+                self.mock_mode = True
+            else:
+                # CRITICAL: Do not fail silently in production
+                raise RuntimeError(f"Spotify Auth Failed: {e}. Check your credentials or set SYN_ENV=DEV.")
 
     def play_track(self, track_id: str):
         """Start playback of a track."""
@@ -99,3 +103,32 @@ class SpotifyClient:
         except Exception as e:
             print(f"Search error: {e}")
             return {"title": "Error", "artist": "Error"}
+
+    def get_track_details(self, track_id: str) -> Optional[Dict]:
+        """Fetch detailed track info including audio features."""
+        if self.mock_mode:
+            return {
+                "id": track_id,
+                "name": "Mock Track",
+                "artists": [{"name": "Mock Artist"}],
+                "audio_features": {
+                    "tempo": 120.0,
+                    "energy": 0.8,
+                    "valence": 0.5,
+                    "danceability": 0.6
+                }
+            }
+            
+        try:
+            track = self.sp.track(track_id)
+            features = self.sp.audio_features([track_id])[0]
+            
+            return {
+                "id": track['id'],
+                "name": track['name'],
+                "artists": track['artists'],
+                "audio_features": features
+            }
+        except Exception as e:
+            print(f"Error fetching track details: {e}")
+            return None
